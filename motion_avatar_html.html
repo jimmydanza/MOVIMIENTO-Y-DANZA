@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Motion Avatar Studio</title>
+
+  <!-- TensorFlow + Pose Detection desde CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #020617;
+      color: white;
+    }
+
+    .app {
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: center;
+      padding: 24px;
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      margin-bottom: 24px;
+    }
+
+    .badge {
+      display: inline-block;
+      background: rgba(217, 70, 239, 0.18);
+      color: #f5d0fe;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 42px;
+      line-height: 1.05;
+    }
+
+    .subtitle {
+      color: #cbd5e1;
+      max-width: 720px;
+      margin: 12px 0 0;
+    }
+
+    .status {
+      min-width: 290px;
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(15, 23, 42, 0.95);
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+
+    .status strong {
+      color: white;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 370px;
+      gap: 24px;
+    }
+
+    .stage {
+      overflow: hidden;
+      background: black;
+      border-radius: 28px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #0f172a;
+    }
+
+    video#cameraVideo {
+      display: none;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .card {
+      padding: 20px;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .card h2 {
+      margin-top: 0;
+      margin-bottom: 14px;
+      font-size: 20px;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    button,
+    .download-link {
+      border: none;
+      border-radius: 16px;
+      padding: 12px 14px;
+      font-weight: 800;
+      cursor: pointer;
+      color: white;
+      text-decoration: none;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .primary {
+      background: #c026d3;
+    }
+
+    .secondary {
+      background: #334155;
+    }
+
+    .record {
+      background: #0891b2;
+    }
+
+    .stop {
+      background: #dc2626;
+    }
+
+    .settings {
+      margin-top: 16px;
+      padding: 14px;
+      background: rgba(15, 23, 42, 0.85);
+      border-radius: 18px;
+      font-size: 14px;
+    }
+
+    .settings label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .settings input[type="range"] {
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .range-label {
+      display: block !important;
+    }
+
+    .settings small {
+      color: #94a3b8;
+    }
+
+    .upload-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-align: center;
+      padding: 20px;
+      border-radius: 18px;
+      border: 1px dashed rgba(255, 255, 255, 0.3);
+      background: rgba(15, 23, 42, 0.75);
+      cursor: pointer;
+    }
+
+    .upload-box input {
+      display: none;
+    }
+
+    .upload-box small {
+      color: #94a3b8;
+    }
+
+    .file-name {
+      color: #f0abfc;
+      font-size: 14px;
+      word-break: break-word;
+    }
+
+    audio {
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .recorded-box {
+      margin-top: 16px;
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(15, 23, 42, 0.85);
+    }
+
+    .recorded-box video {
+      width: 100%;
+      border-radius: 14px;
+      background: black;
+    }
+
+    .download-link {
+      margin-top: 12px;
+      background: white;
+      color: #020617;
+    }
+
+    .tips p {
+      color: #cbd5e1;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      h1 {
+        font-size: 32px;
+      }
+
+      .status {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <div class="container">
+      <header class="header">
+        <div>
+          <div class="badge">Motion Avatar Studio</div>
+          <h1>Avatar que sigue tus movimientos</h1>
+          <p class="subtitle">
+            Usa tu cámara, carga música desde tu dispositivo y graba una coreografía con una figura humana animada en tiempo real.
+          </p>
+        </div>
+        <div class="status">
+          Estado:<br />
+          <strong id="statusText">Listo para iniciar cámara</strong>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="stage">
+          <canvas id="avatarCanvas" width="1280" height="720"></canvas>
+          <video id="cameraVideo" playsinline muted></video>
+        </section>
+
+        <aside class="panel">
+          <section class="card">
+            <h2>📷 Cámara y tracking</h2>
+            <div class="buttons">
+              <button id="startCameraBtn" class="primary">Iniciar cámara</button>
+              <button id="stopCameraBtn" class="secondary" disabled>Apagar</button>
+            </div>
+
+            <div class="settings">
+              <label>
+                <span>Mostrar cámara detrás</span>
+                <input id="showCameraCheck" type="checkbox" />
+              </label>
+              <label>
+                <span>Modo espejo</span>
+                <input id="mirrorCheck" type="checkbox" checked />
+              </label>
+              <label class="range-label">
+                <span>Sensibilidad de detección</span>
+                <input id="confidenceRange" type="range" min="0.12" max="0.65" step="0.01" value="0.28" />
+              </label>
+              <small id="modelState">Modelo: se carga al iniciar cámara</small>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2>🎵 Música</h2>
+            <label class="upload-box">
+              <input id="audioInput" type="file" accept="audio/*" />
+              <strong>Subir música del dispositivo</strong>
+              <small>MP3, WAV, M4A u otro audio compatible</small>
+            </label>
+            <p id="audioName" class="file-name"></p>
+            <audio id="musicPlayer" controls></audio>
+          </section>
+
+          <section class="card">
+            <h2>🎥 Grabación</h2>
+            <div class="buttons">
+              <button id="recordBtn" class="record">▶ Grabar</button>
+              <button id="clearBtn" class="secondary" disabled>Limpiar</button>
+            </div>
+
+            <div id="recordedBox" class="recorded-box" style="display: none;">
+              <video id="recordedVideo" controls></video>
+              <a id="downloadLink" class="download-link" download="mi-coreografia-avatar.webm">⬇ Descargar video</a>
+            </div>
+          </section>
+
+          <section class="card tips">
+            <h2>✅ Uso recomendado</h2>
+            <p>Colócate de cuerpo completo frente a la cámara, con buena luz y fondo despejado.</p>
+            <p>Funciona mejor en Chrome o Edge. En celular necesita abrirse desde HTTPS o desde un servidor local seguro.</p>
+            <p>La grabación se descarga en formato WEBM. Luego puedes convertirla a MP4.</p>
+          </section>
+        </aside>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById("cameraVideo");
+    const canvas = document.getElementById("avatarCanvas");
+    const ctx = canvas.getContext("2d");
+    const statusText = document.getElementById("statusText");
+    const startCameraBtn = document.getElementById("startCameraBtn");
+    const stopCameraBtn = document.getElementById("stopCameraBtn");
+    const showCameraCheck = document.getElementById("showCameraCheck");
+    const mirrorCheck = document.getElementById("mirrorCheck");
+    const confidenceRange = document.getElementById("confidenceRange");
+    const modelState = document.getElementById("modelState");
+    const audioInput = document.getElementById("audioInput");
+    const audioName = document.getElementById("audioName");
+    const musicPlayer = document.getElementById("musicPlayer");
+    const recordBtn = document.getElementById("recordBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const recordedBox = document.getElementById("recordedBox");
+    const recordedVideo = document.getElementById("recordedVideo");
+    const downloadLink = document.getElementById("downloadLink");
+
+    let detector = null;
+    let cameraStream = null;
+    let animationId = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let recordedUrl = null;
+    let isRecording = false;
+    let audioContext = null;
+    let audioSource = null;
+    let audioDestination = null;
+
+    const bones = [
+      ["left_shoulder", "right_shoulder"],
+      ["left_shoulder", "left_elbow"],
+      ["left_elbow", "left_wrist"],
+      ["right_shoulder", "right_elbow"],
+      ["right_elbow", "right_wrist"],
+      ["left_shoulder", "left_hip"],
+      ["right_shoulder", "right_hip"],
+      ["left_hip", "right_hip"],
+      ["left_hip", "left_knee"],
+      ["left_knee", "left_ankle"],
+      ["right_hip", "right_knee"],
+      ["right_knee", "right_ankle"],
+      ["left_eye", "right_eye"],
+      ["left_ear", "left_eye"],
+      ["right_eye", "right_ear"]
+    ];
+
+    function setStatus(text) {
+      statusText.textContent = text;
+    }
+
+    async function loadDetector() {
+      if (detector) return detector;
+
+      setStatus("Cargando detector de movimiento...");
+      await tf.setBackend("webgl");
+      await tf.ready();
+
+      detector = await poseDetection.createDetector(
+        poseDetection.SupportedModels.MoveNet,
+        {
+          modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+          enableSmoothing: true
+        }
+      );
+
+      modelState.textContent = "Modelo: MoveNet activo";
+      return detector;
+    }
+
+    async function startCamera() {
+      try {
+        const activeDetector = await loadDetector();
+        setStatus("Solicitando acceso a cámara...");
+
+        const constraints = {
+          video: {
+            facingMode: "user",
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        };
+
+        try {
+          cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (error) {
+          cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
+
+        video.srcObject = cameraStream;
+        await video.play();
+
+        startCameraBtn.disabled = true;
+        stopCameraBtn.disabled = false;
+        setStatus("Movimiento activo: colócate frente a la cámara");
+
+        renderLoop(activeDetector);
+      } catch (error) {
+        console.error(error);
+        setStatus("No se pudo iniciar la cámara. Revisa permisos de Chrome.");
+      }
+    }
+
+    function stopCamera() {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+      }
+
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+      }
+
+      startCameraBtn.disabled = false;
+      stopCameraBtn.disabled = true;
+      setStatus("Cámara apagada");
+      drawEmptyAvatar(canvas.width, canvas.height);
+    }
+
+    function clearCanvas(width, height) {
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, "#0f172a");
+      gradient.addColorStop(0.5, "#111827");
+      gradient.addColorStop(1, "#18181b");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.save();
+      ctx.globalAlpha = 0.16;
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1;
+
+      for (let x = 0; x < width; x += 42) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+
+      for (let y = 0; y < height; y += 42) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function getPoint(keypoints, name, videoWidth, videoHeight, canvasWidth, canvasHeight) {
+      const confidence = Number(confidenceRange.value);
+      const kp = keypoints.find(point => point.name === name);
+      if (!kp || kp.score < confidence) return null;
+
+      const rawX = (kp.x / videoWidth) * canvasWidth;
+      const x = mirrorCheck.checked ? canvasWidth - rawX : rawX;
+      const y = (kp.y / videoHeight) * canvasHeight;
+
+      return { x, y, score: kp.score };
+    }
+
+    function midpoint(a, b) {
+      if (!a || !b) return null;
+      return {
+        x: (a.x + b.x) / 2,
+        y: (a.y + b.y) / 2
+      };
+    }
+
+    function drawLine(a, b, width = 14) {
+      if (!a || !b) return;
+
+      const gradient = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+      gradient.addColorStop(0, "#a78bfa");
+      gradient.addColorStop(0.5, "#f472b6");
+      gradient.addColorStop(1, "#38bdf8");
+
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = "rgba(244, 114, 182, 0.65)";
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawJoint(point, radius = 8) {
+      if (!point) return;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.shadowBlur = 16;
+      ctx.shadowColor = "rgba(255,255,255,0.8)";
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawAvatar(pose, videoWidth, videoHeight, canvasWidth, canvasHeight) {
+      if (!pose || !pose.keypoints) {
+        drawEmptyAvatar(canvasWidth, canvasHeight);
+        return;
+      }
+
+      const points = {};
+      pose.keypoints.forEach(kp => {
+        points[kp.name] = getPoint(pose.keypoints, kp.name, videoWidth, videoHeight, canvasWidth, canvasHeight);
+      });
+
+      bones.forEach(([a, b]) => drawLine(points[a], points[b], 13));
+
+      const shoulderMid = midpoint(points.left_shoulder, points.right_shoulder);
+      const hipMid = midpoint(points.left_hip, points.right_hip);
+      drawLine(shoulderMid, hipMid, 18);
+
+      if (points.nose) {
+        let headRadius = 34;
+
+        if (points.left_ear && points.right_ear) {
+          const earDistance = Math.hypot(
+            points.left_ear.x - points.right_ear.x,
+            points.left_ear.y - points.right_ear.y
+          );
+          headRadius = Math.max(24, Math.min(58, earDistance * 0.48));
+        }
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(points.nose.x, points.nose.y - headRadius * 0.18, headRadius, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.shadowBlur = 24;
+        ctx.shadowColor = "rgba(167,139,250,0.85)";
+        ctx.fill();
+        ctx.restore();
+      }
+
+      Object.values(points).forEach(point => drawJoint(point));
+    }
+
+    function drawEmptyAvatar(width, height) {
+      clearCanvas(width, height);
+
+      const cx = width / 2;
+      const cy = height / 2;
+
+      const head = { x: cx, y: cy - 160 };
+      const neck = { x: cx, y: cy - 95 };
+      const leftShoulder = { x: cx - 80, y: cy - 60 };
+      const rightShoulder = { x: cx + 80, y: cy - 60 };
+      const hip = { x: cx, y: cy + 85 };
+      const leftHip = { x: cx - 55, y: cy + 80 };
+      const rightHip = { x: cx + 55, y: cy + 80 };
+
+      drawLine(neck, leftShoulder, 12);
+      drawLine(neck, rightShoulder, 12);
+      drawLine(neck, hip, 16);
+      drawLine(leftHip, { x: cx - 85, y: cy + 230 }, 12);
+      drawLine(rightHip, { x: cx + 85, y: cy + 230 }, 12);
+      drawLine(leftShoulder, { x: cx - 150, y: cy + 40 }, 12);
+      drawLine(rightShoulder, { x: cx + 150, y: cy + 40 }, 12);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(head.x, head.y, 38, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = "rgba(244,114,182,0.8)";
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawCameraPreview(width, height) {
+      if (!showCameraCheck.checked) return;
+
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      if (mirrorCheck.checked) {
+        ctx.translate(width, 0);
+        ctx.scale(-1, 1);
+      }
+      ctx.drawImage(video, 0, 0, width, height);
+      ctx.restore();
+    }
+
+    async function renderLoop(activeDetector) {
+      const width = 1280;
+      const height = 720;
+      canvas.width = width;
+      canvas.height = height;
+
+      async function loop() {
+        try {
+          clearCanvas(width, height);
+
+          if (video.readyState >= 2) {
+            drawCameraPreview(width, height);
+            const poses = await activeDetector.estimatePoses(video, {
+              maxPoses: 1,
+              flipHorizontal: false
+            });
+            drawAvatar(poses[0], video.videoWidth, video.videoHeight, width, height);
+          } else {
+            drawEmptyAvatar(width, height);
+          }
+        } catch (error) {
+          console.error(error);
+        }
+
+        animationId = requestAnimationFrame(loop);
+      }
+
+      loop();
+    }
+
+    audioInput.addEventListener("change", function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const url = URL.createObjectURL(file);
+      musicPlayer.src = url;
+      musicPlayer.load();
+      audioName.textContent = "Archivo: " + file.name;
+      setStatus("Música cargada: puedes reproducirla o grabar con ella");
+    });
+
+    async function prepareAudioForRecording() {
+      if (!musicPlayer.src) return [];
+
+      if (!audioContext) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioContext = new AudioContextClass();
+      }
+
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
+
+      if (!audioSource) {
+        audioSource = audioContext.createMediaElementSource(musicPlayer);
+      }
+
+      audioDestination = audioContext.createMediaStreamDestination();
+      audioSource.connect(audioDestination);
+      audioSource.connect(audioContext.destination);
+
+      return audioDestination.stream.getAudioTracks();
+    }
+
+    async function startRecording() {
+      try {
+        if (!cameraStream) {
+          await startCamera();
+        }
+
+        if (recordedUrl) {
+          URL.revokeObjectURL(recordedUrl);
+          recordedUrl = null;
+          recordedVideo.src = "";
+          downloadLink.href = "";
+          recordedBox.style.display = "none";
+        }
+
+        recordedChunks = [];
+
+        const canvasStream = canvas.captureStream(30);
+        const audioTracks = await prepareAudioForRecording();
+        const finalStream = new MediaStream([
+          ...canvasStream.getVideoTracks(),
+          ...audioTracks
+        ]);
+
+        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+          ? "video/webm;codecs=vp9,opus"
+          : "video/webm";
+
+        mediaRecorder = new MediaRecorder(finalStream, { mimeType });
+
+        mediaRecorder.ondataavailable = function(event) {
+          if (event.data && event.data.size > 0) {
+            recordedChunks.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = function() {
+          const blob = new Blob(recordedChunks, { type: "video/webm" });
+          recordedUrl = URL.createObjectURL(blob);
+          recordedVideo.src = recordedUrl;
+          downloadLink.href = recordedUrl;
+          recordedBox.style.display = "block";
+          clearBtn.disabled = false;
+          setStatus("Grabación terminada. Puedes descargar el video.");
+        };
+
+        if (musicPlayer.src) {
+          musicPlayer.currentTime = 0;
+          await musicPlayer.play();
+        }
+
+        mediaRecorder.start();
+        isRecording = true;
+        recordBtn.textContent = "■ Detener";
+        recordBtn.className = "stop";
+        setStatus("Grabando movimientos...");
+      } catch (error) {
+        console.error(error);
+        setStatus("No se pudo iniciar la grabación. Revisa permisos y compatibilidad del navegador.");
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+      }
+
+      if (musicPlayer) {
+        musicPlayer.pause();
+      }
+
+      isRecording = false;
+      recordBtn.textContent = "▶ Grabar";
+      recordBtn.className = "record";
+    }
+
+    function clearRecording() {
+      if (recordedUrl) {
+        URL.revokeObjectURL(recordedUrl);
+        recordedUrl = null;
+      }
+
+      recordedVideo.src = "";
+      downloadLink.href = "";
+      recordedBox.style.display = "none";
+      clearBtn.disabled = true;
+      setStatus("Grabación eliminada");
+    }
+
+    startCameraBtn.addEventListener("click", startCamera);
+    stopCameraBtn.addEventListener("click", stopCamera);
+
+    recordBtn.addEventListener("click", function() {
+      if (isRecording) {
+        stopRecording();
+      } else {
+        startRecording();
+      }
+    });
+
+    clearBtn.addEventListener("click", clearRecording);
+
+    drawEmptyAvatar(canvas.width, canvas.height);
+  </script>
+</body>
+</html>
